@@ -1,0 +1,20 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect to GameSync",
+        "description": "Enter the address where the GameSync add-on is running.",
+        "data": {
+          "addon_host": "Host",
+          "addon_port": "Port"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Cannot connect to the GameSync add-on. Make sure it is installed and running."
+    },
+    "abort": {
+      "already_configured": "GameSync is already configured."
+    }
+  }
+}

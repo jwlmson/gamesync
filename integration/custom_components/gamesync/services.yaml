@@ -1,0 +1,46 @@
+trigger_effect:
+  name: Trigger Effect
+  description: Manually trigger a GameSync light effect for a team or event type.
+  fields:
+    team_id:
+      name: Team ID
+      description: "Team identifier (e.g. 'nfl:15'). Leave empty to use all configured lights."
+      required: false
+      selector:
+        text:
+    event_type:
+      name: Event Type
+      description: Type of event to simulate.
+      required: true
+      default: score_change
+      selector:
+        select:
+          options:
+            - score_change
+            - game_start
+            - game_end
+            - period_start
+
+set_delay:
+  name: Set Anti-Spoiler Delay
+  description: Set the stream delay for a team (0–120 seconds).
+  fields:
+    team_id:
+      name: Team ID
+      description: The team identifier to update.
+      required: true
+      selector:
+        text:
+    delay_seconds:
+      name: Delay (seconds)
+      description: Number of seconds to delay effects after a score event.
+      required: true
+      selector:
+        number:
+          min: 0
+          max: 120
+          unit_of_measurement: s
+
+refresh:
+  name: Refresh
+  description: Force an immediate refresh of game data from the add-on.

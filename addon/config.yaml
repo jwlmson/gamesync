@@ -1,0 +1,27 @@
+name: "GameSync"
+version: "0.1.0"
+slug: "gamesync"
+description: "Live sports score tracking with smart light effects and audio — a self-hosted ConnectedRoom alternative"
+url: "https://github.com/jwlmson/gamesync-addon"
+arch:
+  - amd64
+  - aarch64
+  - armv7
+startup: "application"
+boot: "auto"
+ingress: true
+ingress_port: 8099
+panel_icon: "mdi:scoreboard"
+panel_title: "GameSync"
+homeassistant_api: true
+auth_api: true
+map:
+  - media:rw
+options:
+  api_football_key: ""
+  log_level: "info"
+schema:
+  api_football_key: "str?"
+  log_level: "list(debug|info|warning|error)"
+ports:
+  8099/tcp: null

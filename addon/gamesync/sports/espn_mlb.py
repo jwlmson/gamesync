@@ -1,0 +1,73 @@
+"""ESPN MLB provider."""
+
+from __future__ import annotations
+
+from datetime import datetime
+
+from gamesync.sports.base import SportProvider
+from gamesync.sports.espn import ESPNClient, parse_espn_game, parse_espn_team
+from gamesync.sports.models import (
+    Game,
+    GameEvent,
+    GameEventType,
+    LeagueId,
+    SportType,
+    Team,
+)
+
+
+class ESPNMLBProvider(SportProvider):
+    SPORT_PATH = "baseball/mlb"
+    LEAGUE = LeagueId.MLB
+    SPORT = SportType.MLB
+
+    def __init__(self, client: ESPNClient) -> None:
+        self._client = client
+
+    @property
+    def league_id(self) -> LeagueId:
+        return self.LEAGUE
+
+    async def get_teams(self) -> list[Team]:
+        data = await self._client.get_teams_list(self.SPORT_PATH)
+        teams = []
+        for group in data.get("sports", [{}])[0].get("leagues", [{}])[0].get("teams", []):
+            teams.append(parse_espn_team(group, self.LEAGUE, self.SPORT))
+        return teams
+
+    async def get_schedule(self, team_id: str, start: datetime, end: datetime) -> list[Game]:
+        games = []
+        current = start
+        while current <= end:
+            scoreboard = await self.get_scoreboard(current)
+            for game in scoreboard:
+                if game.home_team.id == team_id or game.away_team.id == team_id:
+                    games.append(game)
+            current = current.replace(day=current.day + 1)
+        return games
+
+    async def get_live_games(self, team_ids: list[str] | None = None) -> list[Game]:
+        all_games = await self.get_scoreboard()
+        live = [g for g in all_games if g.status.value in ("live", "halftime")]
+        if team_ids:
+            live = [g for g in live if g.home_team.id in team_ids or g.away_team.id in team_ids]
+        return live
+
+    async def get_scoreboard(self, date: datetime | None = None) -> list[Game]:
+        data = await self._client.get_scoreboard(self.SPORT_PATH, date)
+        return [parse_espn_game(e, self.LEAGUE, self.SPORT) for e in data.get("events", [])]
+
+    def detect_events(self, old: Game, new: Game) -> list[GameEvent]:
+        events = super().detect_events(old, new)
+
+        # Enrich MLB score changes
+        for evt in events:
+            if evt.event_type == GameEventType.SCORE_CHANGE:
+                evt.details = evt.details or {}
+                points = evt.details.get("points_scored", 1)
+                if points >= 4:
+                    evt.details["scoring_type"] = "grand_slam"
+                elif points >= 1:
+                    evt.details["scoring_type"] = "run"
+
+        return events
