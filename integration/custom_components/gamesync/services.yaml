@@ -1,11 +1,11 @@
 trigger_effect:
   name: Trigger Effect
-  description: Manually trigger a GameSync light effect for a team or event type.
+  description: Manually trigger a GameSync light/sound effect for a team event.
   fields:
     team_id:
       name: Team ID
-      description: "Team identifier (e.g. 'nfl:15'). Leave empty to use all configured lights."
-      required: false
+      description: "Team identifier (e.g. 'nfl:15'). Required."
+      required: true
       selector:
         text:
     event_type:
@@ -17,9 +17,14 @@ trigger_effect:
         select:
           options:
             - score_change
+            - touchdown
+            - field_goal
+            - goal
+            - three_pointer
+            - home_run
             - game_start
             - game_end
-            - period_start
+            - halftime
 
 set_delay:
   name: Set Anti-Spoiler Delay
@@ -40,6 +45,27 @@ set_delay:
           min: 0
           max: 120
           unit_of_measurement: s
+
+emergency_stop:
+  name: Emergency Stop
+  description: Immediately cancel ALL active light/sound effects.
+
+mute_toggle:
+  name: Toggle Mute
+  description: Toggle the global mute state — muted effects are suppressed entirely.
+
+set_primary_session:
+  name: Set Primary Session
+  description: Manually switch which active game session is "primary" (effects fire).
+  fields:
+    session_id:
+      name: Session ID
+      description: The numeric session ID to promote to primary.
+      required: true
+      selector:
+        number:
+          min: 1
+          mode: box
 
 refresh:
   name: Refresh

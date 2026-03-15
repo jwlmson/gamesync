@@ -1,12 +1,12 @@
 {
   "domain": "gamesync",
   "name": "GameSync",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "codeowners": ["@jwlmson"],
   "config_flow": true,
   "dependencies": [],
-  "documentation": "https://github.com/jwlmson/gamesync-ha",
+  "documentation": "https://github.com/jwlmson/gamesync",
   "iot_class": "local_polling",
-  "issue_tracker": "https://github.com/jwlmson/gamesync-ha/issues",
+  "issue_tracker": "https://github.com/jwlmson/gamesync/issues",
   "requirements": ["aiohttp>=3.9.0"]
 }

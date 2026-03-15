@@ -53,3 +53,6 @@ class GamesyncData:
     teams: dict[str, TeamScore] = field(default_factory=dict)
     raw_live_games: list[dict] = field(default_factory=list)
     scheduler_status: dict = field(default_factory=dict)
+    active_sessions: list[dict] = field(default_factory=list)
+    primary_session: dict | None = None
+    global_mute: bool = False

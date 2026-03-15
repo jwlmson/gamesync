@@ -19,8 +19,10 @@ from .const import (
     DOMAIN,
     EVENT_GAME_END,
     EVENT_GAME_START,
+    EVENT_MUTE_CHANGED,
     EVENT_PERIOD_CHANGE,
     EVENT_SCORE,
+    EVENT_SESSION_CHANGED,
     EVENT_SPECIAL,
     UPDATE_INTERVAL,
 )
@@ -84,20 +86,30 @@ class GameSyncCoordinator(DataUpdateCoordinator[GamesyncData]):
                 self._fetch("/games/live"),
                 self._fetch("/teams/followed"),
                 self._fetch("/events/history?limit=50"),
+                self._fetch("/sessions"),
+                self._fetch("/config"),
                 return_exceptions=True,
             )
         except Exception as err:
             raise UpdateFailed(f"Cannot connect to GameSync add-on: {err}") from err
 
-        live_data, followed_data, history_data = results
+        live_data, followed_data, history_data, sessions_data, config_data = results
         data = GamesyncData()
 
         if not isinstance(followed_data, Exception) and not isinstance(live_data, Exception):
             data.raw_live_games = live_data.get("games", [])
             followed_teams = {t["team_id"]: t for t in followed_data.get("teams", [])}
-
             for game in data.raw_live_games:
                 self._process_game(game, followed_teams, data)
+
+        if not isinstance(sessions_data, Exception):
+            data.active_sessions = sessions_data if isinstance(sessions_data, list) else []
+            data.primary_session = next(
+                (s for s in data.active_sessions if s.get("is_primary")), None
+            )
+
+        if not isinstance(config_data, Exception):
+            data.global_mute = config_data.get("global_mute", False)
 
         if not isinstance(history_data, Exception):
             self._fire_new_events(history_data.get("events", []))

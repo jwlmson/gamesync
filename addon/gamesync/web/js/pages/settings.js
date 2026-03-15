@@ -91,6 +91,29 @@ const SettingsPage = {
             <button class="btn btn-primary" onclick="SettingsPage.save()">Save Settings</button>
 
             <div class="settings-section" style="margin-top: 32px">
+                <h2>Effect Controls</h2>
+                <div class="card" style="max-width: 500px; display: flex; flex-direction: column; gap: 12px">
+                    <div style="display: flex; justify-content: space-between; align-items: center">
+                        <div>
+                            <strong>Global Mute</strong>
+                            <div style="font-size: 12px; color: var(--text-muted)">Suppress all light and audio effects</div>
+                        </div>
+                        <button id="mute-btn" class="btn ${c.global_mute ? 'btn-warning' : ''}"
+                                onclick="SettingsPage.toggleMute()">
+                            ${c.global_mute ? 'Unmute Effects' : 'Mute Effects'}
+                        </button>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 8px; border-top: 1px solid var(--border)">
+                        <div>
+                            <strong>Emergency Stop</strong>
+                            <div style="font-size: 12px; color: var(--text-muted)">Immediately cancel all running effects</div>
+                        </div>
+                        <button class="btn btn-danger" onclick="SettingsPage.emergencyStop()">Stop All Effects</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="settings-section" style="margin-top: 32px">
                 <h2>System Health</h2>
                 <div id="health-info" class="card">Loading...</div>
             </div>`;
@@ -109,6 +132,30 @@ const SettingsPage = {
                 api_football_key: document.getElementById('cfg-apifootball').value || null,
             });
             App.showToast('Settings saved!', 'success');
+        } catch (e) {
+            App.showToast(`Error: ${e.message}`, 'error');
+        }
+    },
+
+    async toggleMute() {
+        try {
+            const result = await API.toggleMute();
+            this.config.global_mute = result.muted;
+            const btn = document.getElementById('mute-btn');
+            if (btn) {
+                btn.textContent = result.muted ? 'Unmute Effects' : 'Mute Effects';
+                btn.className = `btn${result.muted ? ' btn-warning' : ''}`;
+            }
+            App.showToast(result.muted ? 'Effects muted' : 'Effects unmuted', 'success');
+        } catch (e) {
+            App.showToast(`Error: ${e.message}`, 'error');
+        }
+    },
+
+    async emergencyStop() {
+        try {
+            const result = await API.emergencyStop();
+            App.showToast(`Stopped ${result.stopped_count} effect(s)`, 'success');
         } catch (e) {
             App.showToast(`Error: ${e.message}`, 'error');
         }

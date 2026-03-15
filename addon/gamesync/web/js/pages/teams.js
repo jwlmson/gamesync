@@ -4,6 +4,7 @@
 const TeamsPage = {
     followedIds: new Set(),
     followedTeams: [],
+    teamCache: {},  // team_id -> { display_name, logo_url, primary_color, abbreviation }
 
     async render() {
         const app = document.getElementById('app');
@@ -36,8 +37,9 @@ const TeamsPage = {
                 <div id="all-teams">Loading...</div>
             </div>`;
 
-        await this.loadFollowed();
+        // Load all teams first to populate the cache, then show followed using display names
         await this.loadTeams();
+        await this.loadFollowed();
     },
 
     async loadFollowed() {
@@ -52,25 +54,36 @@ const TeamsPage = {
                 return;
             }
 
-            container.innerHTML = this.followedTeams.map(t => `
+            container.innerHTML = this.followedTeams.map(t => {
+                const info = this.teamCache[t.team_id] || {};
+                const color = info.primary_color || '#555';
+                const name = info.display_name || t.team_id;
+                const abbr = info.abbreviation || '';
+                const logo = info.logo_url
+                    ? `<img src="${info.logo_url}" style="width:28px;height:28px;object-fit:contain;margin-right:8px" alt="${abbr}">`
+                    : `<div style="width:28px;height:28px;border-radius:50%;background:${color};margin-right:8px;flex-shrink:0"></div>`;
+                return `
                 <div class="card" style="margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; padding: 12px 16px">
-                    <div>
-                        <strong>${t.team_id}</strong>
-                        <span style="color: var(--text-muted); margin-left: 8px">${t.league}</span>
+                    <div style="display: flex; align-items: center">
+                        ${logo}
+                        <div>
+                            <strong>${name}</strong>
+                            <div style="font-size: 12px; color: var(--text-muted)">${t.league}${abbr ? ' · ' + abbr : ''}</div>
+                        </div>
                     </div>
                     <div style="display: flex; gap: 12px; align-items: center">
                         <label style="font-size: 12px; color: var(--text-secondary)">
                             Delay: <input type="range" min="0" max="120" value="${t.delay_seconds}"
                                 style="width: 100px; vertical-align: middle"
                                 onchange="TeamsPage.updateDelay('${t.team_id}', this.value)">
-                            <span>${t.delay_seconds}s</span>
+                            <span id="delay-label-${t.team_id.replace(/[^a-z0-9]/gi, '_')}">${t.delay_seconds}s</span>
                         </label>
                         <button class="btn btn-sm btn-danger" onclick="TeamsPage.unfollow('${t.team_id}')">
                             Unfollow
                         </button>
                     </div>
-                </div>
-            `).join('');
+                </div>`;
+            }).join('');
         } catch (e) {
             document.getElementById('followed-teams').innerHTML = `<p>Error: ${e.message}</p>`;
         }
@@ -83,6 +96,18 @@ const TeamsPage = {
         try {
             const data = await API.getTeams(league ? { league } : {});
             const byLeague = data.teams || {};
+
+            // Populate cache from browse results (id -> display info)
+            for (const teams of Object.values(byLeague)) {
+                for (const t of teams) {
+                    this.teamCache[t.id] = {
+                        display_name: t.display_name,
+                        logo_url: t.logo_url,
+                        primary_color: t.primary_color,
+                        abbreviation: t.abbreviation,
+                    };
+                }
+            }
 
             if (Object.keys(byLeague).length === 0) {
                 container.innerHTML = '<p style="color: var(--text-muted)">No teams found.</p>';
@@ -142,6 +167,9 @@ const TeamsPage = {
     async updateDelay(teamId, seconds) {
         try {
             await API.updateTeamFollow(teamId, { delay_seconds: parseInt(seconds) });
+            const labelId = 'delay-label-' + teamId.replace(/[^a-z0-9]/gi, '_');
+            const label = document.getElementById(labelId);
+            if (label) label.textContent = seconds + 's';
         } catch (e) {
             App.showToast(`Error: ${e.message}`, 'error');
         }

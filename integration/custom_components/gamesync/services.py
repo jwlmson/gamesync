@@ -73,8 +73,75 @@ async def async_refresh(hass: HomeAssistant, call: ServiceCall) -> None:
         await coordinator.async_request_refresh()
 
 
+async def async_emergency_stop(hass: HomeAssistant, call: ServiceCall) -> None:
+    """Handle gamesync.emergency_stop — kills all active effects immediately."""
+    coordinator = _get_coordinator(hass)
+    if not coordinator:
+        return
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                f"{coordinator.base_url}/global/emergency-stop",
+                timeout=aiohttp.ClientTimeout(total=10),
+            ) as resp:
+                resp.raise_for_status()
+                result = await resp.json()
+                _LOGGER.info(
+                    "GameSync emergency stop: %d effects cancelled",
+                    result.get("stopped_count", 0),
+                )
+    except Exception as e:
+        _LOGGER.error("GameSync: Emergency stop failed: %s", e)
+
+
+async def async_mute_toggle(hass: HomeAssistant, call: ServiceCall) -> None:
+    """Handle gamesync.mute_toggle — toggle global mute state."""
+    coordinator = _get_coordinator(hass)
+    if not coordinator:
+        return
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                f"{coordinator.base_url}/global/mute",
+                timeout=aiohttp.ClientTimeout(total=10),
+            ) as resp:
+                resp.raise_for_status()
+                result = await resp.json()
+                muted = result.get("muted", False)
+                _LOGGER.info("GameSync mute toggled: muted=%s", muted)
+                hass.bus.async_fire("gamesync_mute_changed", {"muted": muted})
+    except Exception as e:
+        _LOGGER.error("GameSync: Mute toggle failed: %s", e)
+
+
+async def async_set_primary_session(hass: HomeAssistant, call: ServiceCall) -> None:
+    """Handle gamesync.set_primary_session — switch the active primary game."""
+    coordinator = _get_coordinator(hass)
+    if not coordinator:
+        return
+    session_id = call.data.get("session_id")
+    if not session_id:
+        _LOGGER.error("GameSync: set_primary_session requires session_id")
+        return
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                f"{coordinator.base_url}/sessions/{session_id}/make-primary",
+                timeout=aiohttp.ClientTimeout(total=10),
+            ) as resp:
+                resp.raise_for_status()
+                _LOGGER.info("GameSync primary session set: %s", session_id)
+                hass.bus.async_fire("gamesync_session_changed", {"primary_session_id": session_id})
+        await coordinator.async_request_refresh()
+    except Exception as e:
+        _LOGGER.error("GameSync: set_primary_session failed: %s", e)
+
+
 async def async_setup_services(hass: HomeAssistant) -> None:
     """Register GameSync services."""
     hass.services.async_register(DOMAIN, "trigger_effect", async_trigger_effect)
     hass.services.async_register(DOMAIN, "set_delay", async_set_delay)
+    hass.services.async_register(DOMAIN, "emergency_stop", async_emergency_stop)
+    hass.services.async_register(DOMAIN, "mute_toggle", async_mute_toggle)
+    hass.services.async_register(DOMAIN, "set_primary_session", async_set_primary_session)
     hass.services.async_register(DOMAIN, "refresh", async_refresh)

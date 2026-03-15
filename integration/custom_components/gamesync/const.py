@@ -17,6 +17,16 @@ EVENT_GAME_START = "gamesync_game_start"
 EVENT_GAME_END = "gamesync_game_end"
 EVENT_PERIOD_CHANGE = "gamesync_period_change"
 EVENT_SPECIAL = "gamesync_special"
+EVENT_MUTE_CHANGED = "gamesync_mute_changed"
+EVENT_SESSION_CHANGED = "gamesync_session_changed"
+
+# Services
+SERVICE_TRIGGER_EFFECT = "trigger_effect"
+SERVICE_SET_DELAY = "set_delay"
+SERVICE_EMERGENCY_STOP = "emergency_stop"
+SERVICE_MUTE_TOGGLE = "mute_toggle"
+SERVICE_SET_PRIMARY_SESSION = "set_primary_session"
+SERVICE_REFRESH = "refresh"
 
 # Update interval (seconds)
 UPDATE_INTERVAL = 30

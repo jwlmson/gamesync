@@ -12,6 +12,7 @@ const App = {
         lights: LightsPage,
         effects: EffectsPage,
         calendar: CalendarPage,
+        sounds: SoundsPage,
         settings: SettingsPage,
     },
 

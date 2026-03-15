@@ -101,4 +101,54 @@ const API = {
     createEventStream() {
         return new EventSource(`${this.baseUrl}/events/stream`);
     },
+
+    // Sounds
+    getSounds(category) {
+        const qs = category ? `?category=${encodeURIComponent(category)}` : '';
+        return this._fetch(`/sounds${qs}`);
+    },
+    async uploadSound(file, name) {
+        const formData = new FormData();
+        formData.append('file', file);
+        const qs = name ? `?name=${encodeURIComponent(name)}` : '';
+        const url = `${this.baseUrl}/sounds/upload${qs}`;
+        const resp = await fetch(url, { method: 'POST', body: formData });
+        if (!resp.ok) {
+            const err = await resp.json().catch(() => ({ detail: resp.statusText }));
+            throw new Error(err.detail || `HTTP ${resp.status}`);
+        }
+        return resp.json();
+    },
+    deleteSound(id) { return this._fetch(`/sounds/${id}`, { method: 'DELETE' }); },
+    getSoundFileUrl(id) { return `${this.baseUrl}/sounds/${id}/file`; },
+
+    // Global controls
+    toggleMute() { return this._fetch('/global/mute', { method: 'POST' }); },
+    emergencyStop() { return this._fetch('/global/emergency-stop', { method: 'POST' }); },
+
+    // Sessions
+    getSessions() { return this._fetch('/sessions'); },
+    makeSessionPrimary(sessionId) {
+        return this._fetch(`/sessions/${sessionId}/make-primary`, { method: 'POST' });
+    },
+    endSession(sessionId) {
+        return this._fetch(`/sessions/${sessionId}`, { method: 'DELETE' });
+    },
+
+    // Event types
+    getEventTypes(league) {
+        const qs = league ? `?league=${encodeURIComponent(league)}` : '';
+        return this._fetch(`/event-types${qs}`);
+    },
+
+    // Team event configs
+    getTeamEventConfigs(teamId) {
+        return this._fetch(`/teams/${encodeURIComponent(teamId)}/events`);
+    },
+    bulkUpdateTeamEventConfigs(teamId, configs) {
+        return this._fetch(`/teams/${encodeURIComponent(teamId)}/events`, {
+            method: 'PUT',
+            body: JSON.stringify({ configs }),
+        });
+    },
 };
