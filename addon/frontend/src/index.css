@@ -1,0 +1,98 @@
+@import url('https://fonts.googleapis.com/css2?family=Rokkitt:wght@400;500;600;700;800&family=Archivo:wght@400;500;600;700;800&family=Reenie+Beanie&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-cream text-navy font-archivo m-0;
+    background-image: radial-gradient(circle, #1C2B3612 1px, transparent 1px);
+    background-size: 20px 20px;
+    font-synthesis: none;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  #root {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+}
+
+@layer components {
+  /* Hard shadow button */
+  .btn-hard {
+    @apply font-archivo font-bold uppercase tracking-wider text-sm
+           border-2 border-navy px-6 py-3
+           transition-all duration-100 cursor-pointer;
+    box-shadow: 4px 6px 0px #1C2B36;
+  }
+  .btn-hard:active {
+    box-shadow: 0px 0px 0px #1C2B36;
+    transform: translate(4px, 6px);
+  }
+  .btn-hard:hover {
+    box-shadow: 2px 3px 0px #1C2B36;
+    transform: translate(2px, 3px);
+  }
+
+  .btn-primary {
+    @apply btn-hard bg-accent text-cream;
+  }
+  .btn-secondary {
+    @apply btn-hard bg-cream text-navy;
+  }
+  .btn-dark {
+    @apply btn-hard bg-navy text-cream;
+  }
+  .btn-danger {
+    @apply btn-hard bg-red-700 text-cream;
+  }
+
+  /* Card with hard shadow */
+  .card-hard {
+    @apply border-2 border-navy bg-cream;
+    box-shadow: 4px 6px 0px #1C2B36;
+  }
+
+  /* Stamp overlay */
+  .stamp {
+    @apply font-rokkitt font-bold uppercase tracking-wider
+           border-4 px-4 py-1
+           transform -rotate-12 opacity-80 inline-block;
+  }
+  .stamp-live {
+    @apply stamp border-green-status text-green-status;
+  }
+  .stamp-primary {
+    @apply stamp border-accent text-accent;
+  }
+
+  /* Section heading */
+  .section-heading {
+    @apply font-rokkitt text-xl font-bold uppercase tracking-wider text-navy;
+  }
+
+  /* Nav link */
+  .nav-link {
+    @apply font-archivo text-sm uppercase font-bold tracking-wider transition-colors text-navy hover:text-accent;
+  }
+  .nav-link-active {
+    @apply font-archivo text-sm uppercase font-bold tracking-wider text-accent;
+  }
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #F4F1EA;
+}
+::-webkit-scrollbar-thumb {
+  background: #3A5063;
+  border: 1px solid #1C2B36;
+}
