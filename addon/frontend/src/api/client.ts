@@ -28,6 +28,7 @@ export interface TeamInfo {
 export interface FollowedTeam {
   team_id: string; league: string; delay_seconds: number; effects_enabled: boolean;
   auto_sync_enabled: boolean; priority_rank: number;
+  pregame_alert_enabled: boolean; pregame_alert_minutes: number;
 }
 
 export const getTeams = (league?: string, search?: string) => {

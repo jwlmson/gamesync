@@ -1,5 +1,6 @@
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Trophy, Calendar, Activity, Zap } from 'lucide-react';
+import { Trophy, Calendar, Activity, Zap, Bell } from 'lucide-react';
 import { useApi } from '../hooks/useApi';
 import {
   getGames,
@@ -42,7 +43,18 @@ function isToday(iso: string): boolean {
   return d.toDateString() === now.toDateString();
 }
 
+function minutesUntil(iso: string): number | null {
+  const diff = (new Date(iso).getTime() - Date.now()) / 60_000;
+  return diff > 0 ? Math.floor(diff) : null;
+}
+
 export default function DashboardScreen() {
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const timer = setInterval(() => setTick((t) => t + 1), 60_000);
+    return () => clearInterval(timer);
+  }, []);
+
   const followed = useApi(() => getFollowedTeams(), []);
   const games = useApi(() => getGames(), []);
   const live = useApi(() => getLiveGames(), []);
@@ -101,34 +113,52 @@ export default function DashboardScreen() {
             </div>
           ) : (
             <div className="space-y-3">
-              {todaysGames.map((game) => (
-                <div key={game.id} className="card-hard p-4 flex items-center justify-between">
-                  <div className="flex items-center gap-4 flex-1 min-w-0">
-                    <span className="font-archivo text-xs font-bold uppercase tracking-wider text-muted bg-navy/10 px-2 py-1 border border-navy/20">
-                      {game.league}
-                    </span>
-                    <div className="flex items-center gap-2 flex-1 min-w-0">
-                      <span className="font-archivo font-bold text-sm truncate">
-                        {game.away_team.display_name}
+              {todaysGames.map((game) => {
+                const followedInGame = followedTeams.find(
+                  (ft) =>
+                    ft.pregame_alert_enabled &&
+                    (ft.team_id === game.home_team.id || ft.team_id === game.away_team.id)
+                );
+                const mins = minutesUntil(game.start_time);
+                const showCountdown =
+                  followedInGame != null &&
+                  mins !== null &&
+                  mins <= followedInGame.pregame_alert_minutes;
+                return (
+                  <div key={game.id} className="card-hard p-4 flex items-center justify-between">
+                    <div className="flex items-center gap-4 flex-1 min-w-0">
+                      <span className="font-archivo text-xs font-bold uppercase tracking-wider text-muted bg-navy/10 px-2 py-1 border border-navy/20">
+                        {game.league}
                       </span>
-                      <span className="font-rokkitt text-xs text-muted">@</span>
-                      <span className="font-archivo font-bold text-sm truncate">
-                        {game.home_team.display_name}
+                      <div className="flex items-center gap-2 flex-1 min-w-0">
+                        <span className="font-archivo font-bold text-sm truncate">
+                          {game.away_team.display_name}
+                        </span>
+                        <span className="font-rokkitt text-xs text-muted">@</span>
+                        <span className="font-archivo font-bold text-sm truncate">
+                          {game.home_team.display_name}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3 shrink-0 ml-4">
+                      {game.venue && (
+                        <span className="font-archivo text-xs text-muted hidden sm:block">
+                          {game.venue}
+                        </span>
+                      )}
+                      {showCountdown && (
+                        <span className="flex items-center gap-1 font-archivo text-xs font-bold uppercase tracking-wider text-accent border border-accent px-2 py-1">
+                          <Bell className="w-3 h-3" />
+                          {mins}m
+                        </span>
+                      )}
+                      <span className="font-rokkitt font-bold text-sm bg-navy text-cream px-3 py-1 border border-navy">
+                        {formatTime(game.start_time)}
                       </span>
                     </div>
                   </div>
-                  <div className="flex items-center gap-4 shrink-0 ml-4">
-                    {game.venue && (
-                      <span className="font-archivo text-xs text-muted hidden sm:block">
-                        {game.venue}
-                      </span>
-                    )}
-                    <span className="font-rokkitt font-bold text-sm bg-navy text-cream px-3 py-1 border border-navy">
-                      {formatTime(game.start_time)}
-                    </span>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
 

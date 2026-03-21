@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { ChevronDown, ChevronRight, Lightbulb, Volume2, Zap, Copy } from 'lucide-react';
+import { ChevronDown, ChevronRight, Lightbulb, Volume2, Zap, Copy, Bell } from 'lucide-react';
 import { useApi } from '../hooks/useApi';
 import {
   getTeamEventConfigs,
   updateTeamEventConfigs,
+  updateFollowedTeam,
   copyTeamEventConfigs,
   getEventTypes,
   getFollowedTeams,
@@ -64,6 +65,8 @@ export default function TeamConfigurationScreen() {
   const [eventTypesLoading, setEventTypesLoading] = useState(true);
   const [localConfigs, setLocalConfigs] = useState<Record<number, EventRowConfig>>({});
   const [expandedEvents, setExpandedEvents] = useState<Set<number>>(new Set());
+  const [pregameAlertEnabled, setPregameAlertEnabled] = useState(false);
+  const [pregameAlertMinutes, setPregameAlertMinutes] = useState(30);
   const [copyModalOpen, setCopyModalOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
@@ -81,6 +84,13 @@ export default function TeamConfigurationScreen() {
   const teamInfo = teamId ? teamInfoMap[teamId] : null;
   const followedTeam = (followed.data?.teams ?? []).find((ft: FollowedTeam) => ft.team_id === teamId);
   const league = followedTeam?.league ?? teamInfo?.league;
+
+  // Sync pregame alert settings from followed team data
+  useEffect(() => {
+    if (!followedTeam) return;
+    setPregameAlertEnabled(followedTeam.pregame_alert_enabled ?? false);
+    setPregameAlertMinutes(followedTeam.pregame_alert_minutes ?? 30);
+  }, [followedTeam?.team_id, followedTeam?.pregame_alert_enabled, followedTeam?.pregame_alert_minutes]);
 
   // Load event types when league is known
   useEffect(() => {
@@ -149,9 +159,16 @@ export default function TeamConfigurationScreen() {
         event_type_id,
         ...rest,
       }));
-      await updateTeamEventConfigs(teamId, payload);
+      await Promise.all([
+        updateTeamEventConfigs(teamId, payload),
+        updateFollowedTeam(teamId, {
+          pregame_alert_enabled: pregameAlertEnabled,
+          pregame_alert_minutes: pregameAlertMinutes,
+        }),
+      ]);
       setSaveMessage('Saved successfully.');
       configs.refetch();
+      followed.refetch();
     } catch (e: any) {
       setSaveMessage(`Save failed: ${e.message}`);
     } finally {
@@ -251,7 +268,42 @@ export default function TeamConfigurationScreen() {
           <p className="font-archivo text-sm text-muted">No event types defined for this league.</p>
         </div>
       ) : (
-        <div className="space-y-2">
+        <div className="space-y-4">
+          {/* Pre-Game Alert Card */}
+          <div className="card-hard p-5">
+            <div className="flex items-center gap-3 mb-4">
+              <Bell className="w-4 h-4 text-accent" />
+              <h3 className="font-archivo text-sm font-bold uppercase tracking-wider">Pre-Game Alert</h3>
+            </div>
+            <p className="font-archivo text-xs text-muted mb-4">
+              Trigger a light pulse and Home Assistant event before this team's game starts.
+            </p>
+            <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+              <Toggle
+                checked={pregameAlertEnabled}
+                onChange={setPregameAlertEnabled}
+                label="Enable pre-game alert"
+              />
+              <div className="flex items-center gap-3">
+                <label className="font-archivo text-xs font-bold uppercase tracking-wider whitespace-nowrap">
+                  Alert before:
+                </label>
+                <select
+                  value={pregameAlertMinutes}
+                  onChange={(e) => setPregameAlertMinutes(Number(e.target.value))}
+                  disabled={!pregameAlertEnabled}
+                  className="px-3 py-2 border-2 border-navy bg-cream font-archivo text-sm focus:outline-none focus:border-accent disabled:opacity-40"
+                >
+                  {[5, 10, 15, 30, 60].map((m) => (
+                    <option key={m} value={m}>{m} minutes</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </div>
+
+          {/* Event Type Rows */}
+          <div className="space-y-2">
           {eventTypes.map((et) => {
             const isExpanded = expandedEvents.has(et.id);
             const config = localConfigs[et.id];
@@ -424,6 +476,7 @@ export default function TeamConfigurationScreen() {
               </div>
             );
           })}
+          </div>
         </div>
       )}
 

@@ -81,6 +81,7 @@ class GameEventType(str, Enum):
     RED_CARD = "red_card"
     SAFETY_CAR = "safety_car"
     POSITION_CHANGE = "position_change"
+    PREGAME_ALERT = "pregame_alert"
 
 
 class Team(BaseModel):

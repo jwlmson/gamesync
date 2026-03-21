@@ -29,6 +29,8 @@ class FollowedTeam(BaseModel):
     effects_enabled: bool = True
     auto_sync_enabled: bool = False
     priority_rank: int = 100  # lower = higher priority
+    pregame_alert_enabled: bool = False
+    pregame_alert_minutes: int = 30
 
 
 class LightGroup(BaseModel):

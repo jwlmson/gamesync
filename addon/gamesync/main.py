@@ -16,6 +16,7 @@ from gamesync.engine.scheduler import PollScheduler
 from gamesync.engine.session_manager import SessionManager
 from gamesync.effects.composer import EffectComposer
 from gamesync.effects.executor import EffectExecutor
+from gamesync.effects.models import EffectPrimitive, EffectSequence, EffectStep, LightTarget
 from gamesync.ha_client.client import HAClient
 from gamesync.ha_client.events import HAEventFirer
 from gamesync.ha_client.lights import LightController
@@ -96,6 +97,46 @@ async def lifespan(app: FastAPI):
     delay_buffer = DelayBuffer()
 
     # Subscribe: event emitter -> HA event firer + SSE broadcast + db logging
+    from gamesync.sports.models import GameEventType
+
+    async def _handle_pregame_effect(event) -> None:
+        """Fire a gentle pulse effect for pre-game alerts."""
+        try:
+            if not event.team_id:
+                return
+
+            # Gather all entity_ids configured for this team across any event type
+            team_configs = await db.get_team_event_configs(event.team_id)
+            entity_ids: list[str] = []
+            for tc in team_configs:
+                for eid in tc.target_light_entities:
+                    if eid not in entity_ids:
+                        entity_ids.append(eid)
+
+            if not entity_ids:
+                return  # no lights configured for this team; skip silently
+
+            sequence = EffectSequence(
+                name="pregame_alert",
+                steps=[
+                    EffectStep(
+                        primitive=EffectPrimitive.PULSE,
+                        targets=[LightTarget(entity_ids=entity_ids)],
+                        params={
+                            "color_hex": "#FFFFFF",
+                            "min_brightness": 50,
+                            "max_brightness": 180,
+                            "period_ms": 800,
+                            "count": 5,
+                        },
+                    )
+                ],
+                restore_after=True,
+            )
+            await effect_executor.execute(sequence, group_key=f"pregame-{event.team_id}")
+        except Exception:
+            logger.exception("Failed to execute pre-game light effect")
+
     async def on_event(event):
         await ha_event_firer.fire(event)
         await emitter._broadcast_to_sse(event)
@@ -109,6 +150,9 @@ async def lifespan(app: FastAPI):
             timestamp=event.timestamp.isoformat(),
             data=event.details,
         )
+        # Trigger light pulse for pre-game alerts
+        if event.event_type == GameEventType.PREGAME_ALERT:
+            await _handle_pregame_effect(event)
 
     emitter.subscribe(on_event)
 
@@ -129,6 +173,7 @@ async def lifespan(app: FastAPI):
         registry=registry,
         emitter=emitter,
         delay_buffer=delay_buffer,
+        db=db,
         poll_interval_live=app_config.poll_interval_live,
         poll_interval_gameday=app_config.poll_interval_gameday,
         poll_interval_idle=app_config.poll_interval_idle,
@@ -143,6 +188,7 @@ async def lifespan(app: FastAPI):
         except ValueError:
             logger.warning("Unknown league %s for team %s, skipping", t.league, t.team_id)
     scheduler.set_followed_teams(team_leagues)
+    scheduler.set_followed_team_configs(followed_teams)
 
     if followed_teams:
         await scheduler.start()

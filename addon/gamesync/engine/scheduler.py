@@ -9,9 +9,11 @@ from datetime import datetime, timezone
 from gamesync.engine.delay_buffer import DelayBuffer
 from gamesync.engine.event_emitter import EventEmitter
 from gamesync.engine.poller import GamePoller
+from gamesync.engine.pregame_checker import PreGameChecker
 from gamesync.sports.base import SportProvider
 from gamesync.sports.models import GameStatus, LeagueId
 from gamesync.sports.registry import ProviderRegistry
+from gamesync.storage.models import FollowedTeam
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +32,7 @@ class PollScheduler:
         registry: ProviderRegistry,
         emitter: EventEmitter,
         delay_buffer: DelayBuffer,
+        db: object,
         poll_interval_live: int = 15,
         poll_interval_gameday: int = 60,
         poll_interval_idle: int = 300,
@@ -38,11 +41,13 @@ class PollScheduler:
         self._emitter = emitter
         self._delay_buffer = delay_buffer
         self._poller = GamePoller()
+        self._pregame_checker = PreGameChecker(db)
         self._poll_interval_live = poll_interval_live
         self._poll_interval_gameday = poll_interval_gameday
         self._poll_interval_idle = poll_interval_idle
 
         self._followed_teams: dict[str, LeagueId] = {}  # team_id -> league
+        self._followed_team_configs: list[FollowedTeam] = []
         self._tasks: dict[LeagueId, asyncio.Task] = {}
         self._running = False
 
@@ -54,6 +59,10 @@ class PollScheduler:
     def set_followed_teams(self, teams: dict[str, LeagueId]) -> None:
         """Update the set of followed teams."""
         self._followed_teams = dict(teams)
+
+    def set_followed_team_configs(self, teams: list[FollowedTeam]) -> None:
+        """Update full followed team configs (used by the pregame checker)."""
+        self._followed_team_configs = list(teams)
 
     def get_active_leagues(self) -> set[LeagueId]:
         """Return leagues that have at least one followed team."""
@@ -152,9 +161,16 @@ class PollScheduler:
         # Detect events
         events = self._poller.update_and_detect(provider, relevant)
 
-        # Push events through delay buffer
+        # Push score/game events through delay buffer
         for event in events:
             await self._delay_buffer.enqueue(event)
+
+        # Check for upcoming games and fire pre-game alerts (bypass delay buffer)
+        pregame_events = await self._pregame_checker.check(
+            relevant, self._followed_team_configs
+        )
+        for event in pregame_events:
+            await self._emitter.emit(event)
 
         # Determine next interval
         if has_live:
