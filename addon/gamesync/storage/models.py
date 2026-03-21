@@ -52,6 +52,7 @@ class AppConfig(BaseModel):
     global_mute: bool = False
     effect_max_duration_seconds: int = 30
     effect_brightness_limit: int = 255
+    tts_enabled: bool = False
 
 
 # ──────────────────────────────────────────────────────────────────────

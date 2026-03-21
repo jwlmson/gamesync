@@ -243,6 +243,50 @@ def _game_end_loss(
     )
 
 
+def _halftime_break(
+    targets: list[LightTarget], primary: str, secondary: str
+) -> EffectSequence:
+    return EffectSequence(
+        name="Halftime",
+        steps=[
+            EffectStep(
+                primitive=EffectPrimitive.FADE,
+                targets=targets,
+                params={"from_color": primary, "to_color": secondary, "duration_ms": 3000},
+            ),
+            EffectStep(
+                primitive=EffectPrimitive.SOLID,
+                targets=targets,
+                params={"color_hex": secondary, "duration_ms": 5000, "brightness": 80},
+            ),
+            EffectStep(
+                primitive=EffectPrimitive.FADE,
+                targets=targets,
+                params={"from_color": secondary, "to_color": primary, "duration_ms": 3000},
+            ),
+            EffectStep(primitive=EffectPrimitive.RESTORE, targets=targets),
+        ],
+        restore_after=True,
+    )
+
+
+def _period_change(
+    targets: list[LightTarget], primary: str, secondary: str
+) -> EffectSequence:
+    return EffectSequence(
+        name="Period Change",
+        steps=[
+            EffectStep(
+                primitive=EffectPrimitive.FLASH,
+                targets=targets,
+                params={"color_hex": primary, "on_ms": 150, "off_ms": 100, "count": 2},
+            ),
+            EffectStep(primitive=EffectPrimitive.RESTORE, targets=targets),
+        ],
+        restore_after=True,
+    )
+
+
 def _default_score(
     targets: list[LightTarget], primary: str, secondary: str
 ) -> EffectSequence:
@@ -284,4 +328,8 @@ PRESET_BUILDERS = {
     # F1
     (SportType.F1, GameEventType.POSITION_CHANGE): _f1_overtake,
     (SportType.F1, GameEventType.SAFETY_CAR): _f1_overtake,
+    # Halftime — all sports
+    **{(sport, GameEventType.HALFTIME): _halftime_break for sport in SportType},
+    # Period/quarter change — all sports
+    **{(sport, GameEventType.PERIOD_START): _period_change for sport in SportType},
 }

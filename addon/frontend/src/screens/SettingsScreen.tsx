@@ -33,6 +33,7 @@ export default function SettingsScreen() {
         effect_brightness_limit: config.effect_brightness_limit,
         default_audio_entity: config.default_audio_entity ?? '',
         tts_entity: config.tts_entity ?? '',
+        tts_enabled: config.tts_enabled ?? false,
         default_delay_seconds: config.default_delay_seconds,
       });
       // Initialize league toggles (all enabled by default since config doesn't store per-league)
@@ -276,6 +277,13 @@ export default function SettingsScreen() {
                 className="w-full border-2 border-navy px-3 py-2 bg-cream font-archivo text-sm text-navy placeholder:text-muted/50 focus:outline-none focus:border-accent"
               />
             </div>
+            <div className="flex items-center gap-4 py-1">
+              <Toggle
+                checked={(form.tts_enabled as boolean) ?? false}
+                onChange={(v) => updateField('tts_enabled', v)}
+                label="Enable TTS Announcements"
+              />
+            </div>
             <div>
               <label className="font-archivo text-xs font-bold text-navy uppercase tracking-wider block mb-1">
                 TTS Entity
@@ -285,7 +293,8 @@ export default function SettingsScreen() {
                 placeholder="tts.google_translate_say"
                 value={(form.tts_entity as string) ?? ''}
                 onChange={(e) => updateField('tts_entity', e.target.value || null)}
-                className="w-full border-2 border-navy px-3 py-2 bg-cream font-archivo text-sm text-navy placeholder:text-muted/50 focus:outline-none focus:border-accent"
+                disabled={!form.tts_enabled}
+                className="w-full border-2 border-navy px-3 py-2 bg-cream font-archivo text-sm text-navy placeholder:text-muted/50 focus:outline-none focus:border-accent disabled:opacity-40"
               />
             </div>
           </div>

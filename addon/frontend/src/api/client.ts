@@ -152,7 +152,8 @@ export const emergencyStop = () => request<{ stopped_count: number }>('/global/e
 export interface AppConfig {
   default_delay_seconds: number; poll_interval_live: number;
   poll_interval_gameday: number; poll_interval_idle: number;
-  tts_entity: string | null; default_audio_entity: string | null;
+  tts_entity: string | null; tts_language: string; tts_enabled: boolean;
+  default_audio_entity: string | null;
   global_mute: boolean; effect_max_duration_seconds: number; effect_brightness_limit: number;
 }
 export const getConfig = () => request<AppConfig>('/config');
