@@ -41,12 +41,12 @@ class SportProvider(ABC):
         Subclasses can override for sport-specific events.
         """
         from uuid import uuid4
+        from gamesync.sports.models import GameEventType, GameStatus
 
         events: list[GameEvent] = []
 
         # Status transitions
         if old.status != new.status:
-            from gamesync.sports.models import GameEventType, GameStatus
 
             if new.status == GameStatus.LIVE and old.status in (
                 GameStatus.SCHEDULED,

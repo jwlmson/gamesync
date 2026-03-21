@@ -32,4 +32,7 @@ async def update_config(config: AppConfig):
     if app_state.delay_buffer:
         app_state.delay_buffer.set_default_delay(config.default_delay_seconds)
 
+    # Refresh live config reference used by TTS and other in-process handlers
+    app_state.live_app_config = config
+
     return {"status": "ok"}

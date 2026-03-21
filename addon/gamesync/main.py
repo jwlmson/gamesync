@@ -16,6 +16,7 @@ from gamesync.engine.scheduler import PollScheduler
 from gamesync.engine.session_manager import SessionManager
 from gamesync.effects.composer import EffectComposer
 from gamesync.effects.executor import EffectExecutor
+from gamesync.effects.models import EffectPrimitive, EffectSequence, EffectStep, LightTarget
 from gamesync.ha_client.client import HAClient
 from gamesync.ha_client.events import HAEventFirer
 from gamesync.ha_client.lights import LightController
@@ -23,6 +24,7 @@ from gamesync.ha_client.media import MediaController
 from gamesync.ha_client.tts import TTSController
 from gamesync.sports.registry import ProviderRegistry
 from gamesync.storage.db import Database
+from gamesync.storage.models import AppConfig
 from gamesync.storage.sound_manager import SoundManager
 
 logger = logging.getLogger(__name__)
@@ -42,6 +44,7 @@ effect_composer: EffectComposer | None = None
 effect_executor: EffectExecutor | None = None
 session_manager: SessionManager | None = None
 sound_manager: SoundManager | None = None
+live_app_config: AppConfig = AppConfig()  # refreshed on PUT /api/config
 
 
 @asynccontextmanager
@@ -50,7 +53,7 @@ async def lifespan(app: FastAPI):
     global registry, scheduler, emitter, delay_buffer, db
     global ha_client, light_controller, media_controller, tts_controller
     global ha_event_firer, effect_composer, effect_executor
-    global session_manager, sound_manager
+    global session_manager, sound_manager, live_app_config
 
     settings = get_settings()
 
@@ -86,6 +89,7 @@ async def lifespan(app: FastAPI):
 
     # Apply mute state from config
     app_config = await db.get_app_config()
+    live_app_config = app_config
     effect_executor.muted = app_config.global_mute
 
     # Session manager
@@ -96,6 +100,98 @@ async def lifespan(app: FastAPI):
     delay_buffer = DelayBuffer()
 
     # Subscribe: event emitter -> HA event firer + SSE broadcast + db logging
+    from gamesync.sports.models import GameEvent, GameEventType
+
+    # TTS: _last_tts_time tracks per-team rate limiting (live_app_config is module-level)
+    _last_tts_time: dict[str, float] = {}
+    TTS_RATE_LIMIT_SECONDS = 30
+
+    def _build_tts_message(event: GameEvent) -> str | None:
+        """Build a human-readable TTS announcement for a game event."""
+        et = event.event_type
+        d = event.details or {}
+        tn = event.team_name or "Your team"
+        if et == GameEventType.SCORE_CHANGE:
+            scoring_type = d.get("scoring_type", "scores")
+            home = d.get("home_score", "?")
+            away = d.get("away_score", "?")
+            return f"{tn} {scoring_type}! {home} to {away}."
+        if et == GameEventType.GAME_START:
+            home = d.get("home_team", "")
+            away = d.get("away_team", "")
+            return f"Kickoff! {away} at {home}."
+        if et == GameEventType.GAME_END:
+            result = d.get("result", "")
+            outcome = "wins" if result == "win" else "loses" if result == "loss" else "draws"
+            return f"Final score. {tn} {outcome}."
+        if et == GameEventType.HALFTIME:
+            return f"Halftime. {tn} game at the break."
+        if et == GameEventType.PREGAME_ALERT:
+            mins = d.get("alert_minutes", "?")
+            return f"{tn} game starts in {mins} minutes."
+        return None
+
+    async def _maybe_announce_tts(event: GameEvent) -> None:
+        """Fire TTS announcement if enabled and not rate-limited."""
+        if not live_app_config.tts_enabled:
+            return
+        if not live_app_config.tts_entity:
+            return
+        if effect_executor.muted:
+            return
+        msg = _build_tts_message(event)
+        if not msg:
+            return
+        key = event.team_id or "global"
+        now = asyncio.get_event_loop().time()
+        if now - _last_tts_time.get(key, 0) < TTS_RATE_LIMIT_SECONDS:
+            return
+        _last_tts_time[key] = now
+        try:
+            await tts_controller.speak(
+                live_app_config.tts_entity, msg, live_app_config.tts_language
+            )
+        except Exception:
+            logger.exception("TTS announcement failed")
+
+    async def _handle_pregame_effect(event) -> None:
+        """Fire a gentle pulse effect for pre-game alerts."""
+        try:
+            if not event.team_id:
+                return
+
+            # Gather all entity_ids configured for this team across any event type
+            team_configs = await db.get_team_event_configs(event.team_id)
+            entity_ids: list[str] = []
+            for tc in team_configs:
+                for eid in tc.target_light_entities:
+                    if eid not in entity_ids:
+                        entity_ids.append(eid)
+
+            if not entity_ids:
+                return  # no lights configured for this team; skip silently
+
+            sequence = EffectSequence(
+                name="pregame_alert",
+                steps=[
+                    EffectStep(
+                        primitive=EffectPrimitive.PULSE,
+                        targets=[LightTarget(entity_ids=entity_ids)],
+                        params={
+                            "color_hex": "#FFFFFF",
+                            "min_brightness": 50,
+                            "max_brightness": 180,
+                            "period_ms": 800,
+                            "count": 5,
+                        },
+                    )
+                ],
+                restore_after=True,
+            )
+            await effect_executor.execute(sequence, group_key=f"pregame-{event.team_id}")
+        except Exception:
+            logger.exception("Failed to execute pre-game light effect")
+
     async def on_event(event):
         await ha_event_firer.fire(event)
         await emitter._broadcast_to_sse(event)
@@ -109,6 +205,11 @@ async def lifespan(app: FastAPI):
             timestamp=event.timestamp.isoformat(),
             data=event.details,
         )
+        # Trigger light pulse for pre-game alerts
+        if event.event_type == GameEventType.PREGAME_ALERT:
+            await _handle_pregame_effect(event)
+        # TTS announcement
+        await _maybe_announce_tts(event)
 
     emitter.subscribe(on_event)
 
@@ -129,6 +230,7 @@ async def lifespan(app: FastAPI):
         registry=registry,
         emitter=emitter,
         delay_buffer=delay_buffer,
+        db=db,
         poll_interval_live=app_config.poll_interval_live,
         poll_interval_gameday=app_config.poll_interval_gameday,
         poll_interval_idle=app_config.poll_interval_idle,
@@ -143,6 +245,7 @@ async def lifespan(app: FastAPI):
         except ValueError:
             logger.warning("Unknown league %s for team %s, skipping", t.league, t.team_id)
     scheduler.set_followed_teams(team_leagues)
+    scheduler.set_followed_team_configs(followed_teams)
 
     if followed_teams:
         await scheduler.start()

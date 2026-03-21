@@ -25,7 +25,7 @@ from gamesync.storage.models import (
 
 logger = logging.getLogger(__name__)
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 SCHEMA_SQL = """
 -- Version tracking
@@ -41,7 +41,9 @@ CREATE TABLE IF NOT EXISTS followed_teams (
     delay_seconds INTEGER DEFAULT 0,
     effects_enabled INTEGER DEFAULT 1,
     auto_sync_enabled INTEGER DEFAULT 0,
-    priority_rank INTEGER DEFAULT 100
+    priority_rank INTEGER DEFAULT 100,
+    pregame_alert_enabled INTEGER DEFAULT 0,
+    pregame_alert_minutes INTEGER DEFAULT 30
 );
 
 CREATE TABLE IF NOT EXISTS light_groups (
@@ -179,6 +181,16 @@ CREATE TABLE IF NOT EXISTS score_events (
 );
 CREATE INDEX IF NOT EXISTS idx_score_events_game ON score_events(game_id);
 CREATE INDEX IF NOT EXISTS idx_score_events_processed ON score_events(processed);
+
+CREATE TABLE IF NOT EXISTS pregame_alerts_sent (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    game_id TEXT NOT NULL,
+    team_id TEXT NOT NULL,
+    alert_minutes INTEGER NOT NULL,
+    sent_at TEXT DEFAULT (datetime('now')),
+    UNIQUE (game_id, team_id, alert_minutes)
+);
+CREATE INDEX IF NOT EXISTS idx_pregame_alerts_game ON pregame_alerts_sent(game_id);
 """
 
 
@@ -221,6 +233,8 @@ class Database:
                     effects_enabled=bool(r["effects_enabled"]),
                     auto_sync_enabled=bool(r["auto_sync_enabled"]),
                     priority_rank=r["priority_rank"],
+                    pregame_alert_enabled=bool(r["pregame_alert_enabled"]),
+                    pregame_alert_minutes=r["pregame_alert_minutes"],
                 )
                 for r in rows
             ]
@@ -239,13 +253,16 @@ class Database:
                 effects_enabled=bool(r["effects_enabled"]),
                 auto_sync_enabled=bool(r["auto_sync_enabled"]),
                 priority_rank=r["priority_rank"],
+                pregame_alert_enabled=bool(r["pregame_alert_enabled"]),
+                pregame_alert_minutes=r["pregame_alert_minutes"],
             )
 
     async def follow_team(self, team: FollowedTeam) -> None:
         await self._db.execute(
             """INSERT OR REPLACE INTO followed_teams
-               (team_id, league, delay_seconds, effects_enabled, auto_sync_enabled, priority_rank)
-               VALUES (?, ?, ?, ?, ?, ?)""",
+               (team_id, league, delay_seconds, effects_enabled, auto_sync_enabled, priority_rank,
+                pregame_alert_enabled, pregame_alert_minutes)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 team.team_id,
                 team.league,
@@ -253,6 +270,8 @@ class Database:
                 int(team.effects_enabled),
                 int(team.auto_sync_enabled),
                 team.priority_rank,
+                int(team.pregame_alert_enabled),
+                team.pregame_alert_minutes,
             ),
         )
         await self._db.commit()
@@ -268,7 +287,8 @@ class Database:
         set_clauses = []
         params = []
         for key, value in kwargs.items():
-            if key in ("delay_seconds", "effects_enabled", "auto_sync_enabled", "priority_rank"):
+            if key in ("delay_seconds", "effects_enabled", "auto_sync_enabled", "priority_rank",
+                       "pregame_alert_enabled", "pregame_alert_minutes"):
                 if isinstance(value, bool):
                     value = int(value)
                 set_clauses.append(f"{key} = ?")
@@ -390,6 +410,28 @@ class Database:
                 }
                 for r in rows
             ]
+
+    # ─────────────────────────────────────────────────────────────────
+    #  Pre-Game Alert Deduplication
+    # ─────────────────────────────────────────────────────────────────
+
+    async def has_pregame_alert_been_sent(
+        self, game_id: str, team_id: str, alert_minutes: int
+    ) -> bool:
+        async with self._db.execute(
+            "SELECT 1 FROM pregame_alerts_sent WHERE game_id=? AND team_id=? AND alert_minutes=?",
+            (game_id, team_id, alert_minutes),
+        ) as cur:
+            return await cur.fetchone() is not None
+
+    async def record_pregame_alert_sent(
+        self, game_id: str, team_id: str, alert_minutes: int
+    ) -> None:
+        await self._db.execute(
+            "INSERT OR IGNORE INTO pregame_alerts_sent (game_id, team_id, alert_minutes) VALUES (?, ?, ?)",
+            (game_id, team_id, alert_minutes),
+        )
+        await self._db.commit()
 
     # ─────────────────────────────────────────────────────────────────
     #  Leagues

@@ -23,6 +23,8 @@ class UpdateFollowRequest(BaseModel):
     effects_enabled: bool | None = None
     auto_sync_enabled: bool | None = None
     priority_rank: int | None = None
+    pregame_alert_enabled: bool | None = None
+    pregame_alert_minutes: int | None = None
 
 
 class TeamEventConfigRequest(BaseModel):
@@ -109,6 +111,7 @@ async def follow_team(req: FollowRequest):
     followed = await app_state.db.get_followed_teams()
     team_leagues = {t.team_id: t.league for t in followed}
     app_state.scheduler.set_followed_teams(team_leagues)
+    app_state.scheduler.set_followed_team_configs(followed)
     await app_state.scheduler.refresh_leagues()
 
     return {"status": "ok", "team": team.model_dump(mode="json")}
@@ -126,6 +129,7 @@ async def unfollow_team(team_id: str):
     followed = await app_state.db.get_followed_teams()
     team_leagues = {t.team_id: t.league for t in followed}
     app_state.scheduler.set_followed_teams(team_leagues)
+    app_state.scheduler.set_followed_team_configs(followed)
     await app_state.scheduler.refresh_leagues()
 
     return {"status": "ok"}
@@ -147,9 +151,18 @@ async def update_followed_team(team_id: str, req: UpdateFollowRequest):
         updates["auto_sync_enabled"] = req.auto_sync_enabled
     if req.priority_rank is not None:
         updates["priority_rank"] = req.priority_rank
+    if req.pregame_alert_enabled is not None:
+        updates["pregame_alert_enabled"] = req.pregame_alert_enabled
+    if req.pregame_alert_minutes is not None:
+        updates["pregame_alert_minutes"] = req.pregame_alert_minutes
 
     if updates:
         await app_state.db.update_followed_team(team_id, **updates)
+
+    # Refresh pregame checker configs in the scheduler
+    if app_state.scheduler:
+        followed = await app_state.db.get_followed_teams()
+        app_state.scheduler.set_followed_team_configs(followed)
 
     return {"status": "ok"}
 

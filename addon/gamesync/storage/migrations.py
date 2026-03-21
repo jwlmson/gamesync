@@ -55,8 +55,54 @@ async def migrate_v1_to_v2(db: aiosqlite.Connection) -> None:
     logger.info("Schema migration v1 → v2 complete")
 
 
+async def migrate_v2_to_v3(db: aiosqlite.Connection) -> None:
+    """Migrate from schema v2 to v3.
+
+    Adds pregame alert columns to followed_teams and creates the
+    pregame_alerts_sent deduplication table.
+    """
+    logger.info("Migrating schema from v2 to v3...")
+
+    existing_cols = set()
+    async with db.execute("PRAGMA table_info(followed_teams)") as cur:
+        async for row in cur:
+            existing_cols.add(row[1])
+
+    if "pregame_alert_enabled" not in existing_cols:
+        await db.execute(
+            "ALTER TABLE followed_teams ADD COLUMN pregame_alert_enabled INTEGER DEFAULT 0"
+        )
+        logger.info("Added pregame_alert_enabled column to followed_teams")
+
+    if "pregame_alert_minutes" not in existing_cols:
+        await db.execute(
+            "ALTER TABLE followed_teams ADD COLUMN pregame_alert_minutes INTEGER DEFAULT 30"
+        )
+        logger.info("Added pregame_alert_minutes column to followed_teams")
+
+    await db.execute("""
+        CREATE TABLE IF NOT EXISTS pregame_alerts_sent (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            game_id TEXT NOT NULL,
+            team_id TEXT NOT NULL,
+            alert_minutes INTEGER NOT NULL,
+            sent_at TEXT DEFAULT (datetime('now')),
+            UNIQUE (game_id, team_id, alert_minutes)
+        )
+    """)
+    await db.execute(
+        "CREATE INDEX IF NOT EXISTS idx_pregame_alerts_game ON pregame_alerts_sent(game_id)"
+    )
+
+    await db.execute("INSERT OR REPLACE INTO schema_version (version) VALUES (3)")
+    await db.commit()
+    logger.info("Schema migration v2 → v3 complete")
+
+
 async def run_migrations(db: aiosqlite.Connection) -> None:
     """Run all pending migrations."""
     version = await get_schema_version(db)
     if version < 2:
         await migrate_v1_to_v2(db)
+    if version < 3:
+        await migrate_v2_to_v3(db)
