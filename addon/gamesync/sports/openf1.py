@@ -214,5 +214,26 @@ class OpenF1Provider(SportProvider):
                         details={"message": message, "flag": flag},
                     )
                 )
+            elif category == "FLAG":
+                if flag == "YELLOW":
+                    events.append(
+                        GameEvent(
+                            id=str(uuid4()),
+                            game_id="f1:live",
+                            event_type=GameEventType.YELLOW_FLAG,
+                            league=LeagueId.F1,
+                            details={"message": message, "flag": flag},
+                        )
+                    )
+                elif flag == "RED":
+                    events.append(
+                        GameEvent(
+                            id=str(uuid4()),
+                            game_id="f1:live",
+                            event_type=GameEventType.RED_FLAG,
+                            league=LeagueId.F1,
+                            details={"message": message, "flag": flag},
+                        )
+                    )
 
         return events, new_index

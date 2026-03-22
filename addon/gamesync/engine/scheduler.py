@@ -12,6 +12,7 @@ from gamesync.engine.poller import GamePoller
 from gamesync.engine.pregame_checker import PreGameChecker
 from gamesync.sports.base import SportProvider
 from gamesync.sports.models import GameStatus, LeagueId
+from gamesync.sports.openf1 import OpenF1Provider
 from gamesync.sports.registry import ProviderRegistry
 from gamesync.storage.models import FollowedTeam
 
@@ -55,6 +56,9 @@ class PollScheduler:
         self._league_has_live: dict[LeagueId, bool] = {}
         self._league_has_today: dict[LeagueId, bool] = {}
         self._last_poll: dict[LeagueId, datetime] = {}
+
+        # Track last-seen race control message index per F1 game
+        self._f1_race_control_index: dict[str, int] = {}
 
     def set_followed_teams(self, teams: dict[str, LeagueId]) -> None:
         """Update the set of followed teams."""
@@ -164,6 +168,25 @@ class PollScheduler:
         # Push score/game events through delay buffer
         for event in events:
             await self._delay_buffer.enqueue(event)
+
+        # For F1: poll race control messages to detect flag events
+        if league == LeagueId.F1 and isinstance(provider, OpenF1Provider):
+            live_f1_games = [
+                g for g in games if g.status == GameStatus.LIVE
+            ]
+            for game in live_f1_games:
+                try:
+                    session_key = int(game.id.split(":")[1])
+                    last_index = self._f1_race_control_index.get(game.id, -1)
+                    messages = await provider.get_race_control(session_key)
+                    rc_events, new_index = provider.detect_race_control_events(
+                        messages, last_index
+                    )
+                    self._f1_race_control_index[game.id] = new_index
+                    for event in rc_events:
+                        await self._delay_buffer.enqueue(event)
+                except Exception:
+                    logger.exception("Failed to poll race control for %s", game.id)
 
         # Check for upcoming games and fire pre-game alerts (bypass delay buffer)
         pregame_events = await self._pregame_checker.check(

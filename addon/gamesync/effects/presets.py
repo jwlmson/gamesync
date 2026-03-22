@@ -179,6 +179,43 @@ def _f1_overtake(
     )
 
 
+def _f1_yellow_flag(
+    targets: list[LightTarget], primary: str, secondary: str
+) -> EffectSequence:
+    return EffectSequence(
+        name="F1 Yellow Flag",
+        steps=[
+            EffectStep(
+                primitive=EffectPrimitive.SOLID,
+                targets=targets,
+                params={"color_hex": "#FFFF00", "duration_ms": 5000},
+            ),
+            EffectStep(primitive=EffectPrimitive.RESTORE, targets=targets),
+        ],
+    )
+
+
+def _f1_red_flag(
+    targets: list[LightTarget], primary: str, secondary: str
+) -> EffectSequence:
+    return EffectSequence(
+        name="F1 Red Flag",
+        steps=[
+            EffectStep(
+                primitive=EffectPrimitive.FLASH,
+                targets=targets,
+                params={"color_hex": "#FF0000", "on_ms": 150, "off_ms": 100, "count": 6},
+            ),
+            EffectStep(
+                primitive=EffectPrimitive.SOLID,
+                targets=targets,
+                params={"color_hex": "#FF0000", "duration_ms": 3000},
+            ),
+            EffectStep(primitive=EffectPrimitive.RESTORE, targets=targets),
+        ],
+    )
+
+
 def _game_start(
     targets: list[LightTarget], primary: str, secondary: str
 ) -> EffectSequence:
@@ -328,6 +365,8 @@ PRESET_BUILDERS = {
     # F1
     (SportType.F1, GameEventType.POSITION_CHANGE): _f1_overtake,
     (SportType.F1, GameEventType.SAFETY_CAR): _f1_overtake,
+    (SportType.F1, GameEventType.YELLOW_FLAG): _f1_yellow_flag,
+    (SportType.F1, GameEventType.RED_FLAG): _f1_red_flag,
     # Halftime — all sports
     **{(sport, GameEventType.HALFTIME): _halftime_break for sport in SportType},
     # Period/quarter change — all sports

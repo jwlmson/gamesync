@@ -85,6 +85,8 @@ EVENT_TYPES: dict[str, list[tuple[str, str, int, str]]] = {
         ("podium", "Podium Finish", 0, "flash"),
         ("fastest_lap", "Fastest Lap", 0, "pulse"),
         ("safety_car", "Safety Car", 0, "solid"),
+        ("yellow_flag", "Yellow Flag", 0, "solid"),
+        ("red_flag", "Red Flag", 0, "flash"),
         ("overtake", "Overtake", 0, "pulse"),
         ("game_start", "Race Start", 0, "flash"),
         ("game_end", "Race End", 0, "color_cycle"),

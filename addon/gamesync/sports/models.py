@@ -80,6 +80,8 @@ class GameEventType(str, Enum):
     YELLOW_CARD = "yellow_card"
     RED_CARD = "red_card"
     SAFETY_CAR = "safety_car"
+    YELLOW_FLAG = "yellow_flag"
+    RED_FLAG = "red_flag"
     POSITION_CHANGE = "position_change"
     PREGAME_ALERT = "pregame_alert"
 

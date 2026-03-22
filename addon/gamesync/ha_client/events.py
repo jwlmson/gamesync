@@ -22,6 +22,8 @@ EVENT_TYPE_MAP: dict[GameEventType, str] = {
     GameEventType.YELLOW_CARD: "gamesync_special",
     GameEventType.RED_CARD: "gamesync_special",
     GameEventType.SAFETY_CAR: "gamesync_special",
+    GameEventType.YELLOW_FLAG: "gamesync_special",
+    GameEventType.RED_FLAG: "gamesync_special",
     GameEventType.POSITION_CHANGE: "gamesync_special",
     GameEventType.PREGAME_ALERT: "gamesync_pregame",
 }
